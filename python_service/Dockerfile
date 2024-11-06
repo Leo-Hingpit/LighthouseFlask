@@ -17,4 +17,6 @@ COPY . /app
 EXPOSE 8080
 
 # Use Gunicorn to run the app
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "app:app"]
+CMD ["python", "app.py"]
+
+#CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "app:app"]
