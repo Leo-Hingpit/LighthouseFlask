@@ -1,0 +1,29 @@
+2024-11-15 02:58:10,899 - WARNING -  * Debugger is active!
+2024-11-15 02:58:10,901 - INFO -  * Debugger PIN: 130-057-405
+2024-11-15 02:58:18,968 - INFO - Full Historical Data:
+          ds         y  isHistorical
+0 2024-08-01  1.612903          True
+1 2024-09-01  6.000000          True
+2024-11-15 02:58:19,000 - DEBUG - cmd: where.exe tbb.dll
+cwd: None
+2024-11-15 02:58:19,048 - DEBUG - Adding TBB (C:\Users\Asus\newnew\LaskApp\.venv\Lib\site-packages\prophet\stan_model\cmdstan-2.33.1\stan\lib\stan_math\lib\tbb) to PATH
+2024-11-15 02:58:19,052 - INFO - Disabling yearly seasonality. Run prophet with yearly_seasonality=True to override this.
+2024-11-15 02:58:19,054 - INFO - Disabling weekly seasonality. Run prophet with weekly_seasonality=True to override this.
+2024-11-15 02:58:19,054 - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+2024-11-15 02:58:19,060 - INFO - n_changepoints greater than number of observations. Using 0.
+2024-11-15 02:58:19,061 - DEBUG - input tempfile: C:\Users\Asus\AppData\Local\Temp\tmpg7rpte_r\2d_l_h8s.json
+2024-11-15 02:58:19,062 - DEBUG - input tempfile: C:\Users\Asus\AppData\Local\Temp\tmpg7rpte_r\cquuk816.json
+2024-11-15 02:58:19,063 - DEBUG - idx 0
+2024-11-15 02:58:19,063 - DEBUG - running CmdStan, num_threads: None
+2024-11-15 02:58:19,063 - DEBUG - CmdStan args: ['C:\\Users\\Asus\\newnew\\LaskApp\\.venv\\Lib\\site-packages\\prophet\\stan_model\\prophet_model.bin', 'random', 'seed=83093', 'data', 'file=C:\\Users\\Asus\\AppData\\Local\\Temp\\tmpg7rpte_r\\2d_l_h8s.json', 'init=C:\\Users\\Asus\\AppData\\Local\\Temp\\tmpg7rpte_r\\cquuk816.json', 'output', 'file=C:\\Users\\Asus\\AppData\\Local\\Temp\\tmpg7rpte_r\\prophet_modeltt1sfb50\\prophet_model-20241115025819.csv', 'method=optimize', 'algorithm=newton', 'iter=10000']
+2024-11-15 02:58:19,063 - INFO - Chain [1] start processing
+2024-11-15 02:58:19,113 - INFO - Chain [1] done processing
+2024-11-15 02:58:19,157 - INFO - 127.0.0.1 - - [15/Nov/2024 02:58:19] "POST /forecast?forecast_start_index=1 HTTP/1.1" 200 -
+2024-11-15 08:31:12,491 - INFO - Full Historical Data:
+          ds         y  isHistorical
+0 2024-08-01  1.612903          True
+2024-11-15 08:31:12,497 - DEBUG - cmd: where.exe tbb.dll
+cwd: None
+2024-11-15 08:31:12,595 - DEBUG - TBB already found in load path
+2024-11-15 08:31:12,596 - INFO - 127.0.0.1 - - [15/Nov/2024 08:31:12] "[31m[1mPOST /forecast?months=3 HTTP/1.1[0m" 400 -
+2024-11-15 10:02:00,268 - INFO -  * Detected change in 'C:\\Users\\Asus\\newnew\\LaskApp\\python_service\\app.py', reloading

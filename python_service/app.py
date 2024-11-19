@@ -1,74 +1,173 @@
 from flask import Flask, request, jsonify
-import pandas as pd
 from prophet import Prophet
-from flask_cors import CORS
+import pandas as pd
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/forecast', methods=['POST'])
 def forecast():
-    data = request.json
-    if not data or not isinstance(data, list):
-        return jsonify({"error": "Invalid data format. Expecting a JSON array."}), 400
-
+    
     try:
-        # Load and preprocess data
+        # Parse incoming data
+        data = request.json
+        if not isinstance(data, list) or not all('ds' in item and 'y' in item for item in data):
+            print("Invalid data format received:", data)
+            return jsonify({"error": "Invalid data format. Expecting a JSON array with 'ds' and 'y' keys."}), 400
+
         df = pd.DataFrame(data)
-        if len(df.dropna()) < 2:
-            return jsonify([])
+        df['ds'] = pd.to_datetime(df['ds'], errors='coerce')
+        df = df.dropna(subset=['ds', 'y'])
 
-        # Convert 'ds' to datetime and group by month
-        df['ds'] = pd.to_datetime(df['ds'])
-        df['month'] = df['ds'].dt.to_period("M")
-        grouped_df = df.groupby('month').agg({'y': 'sum'}).reset_index()
-        grouped_df['ds'] = grouped_df['month'].dt.to_timestamp()
-        grouped_df = grouped_df[['ds', 'y']]
+        # Log the incoming data
+        print("Full historical data:\n", df)
 
-        # Fit the Prophet model
-        model = Prophet()
-        model.fit(grouped_df)
+        # Ensure sufficient data for warmup and forecast
+        if len(df) < 3:
+            print("Insufficient rows for warmup and forecasting.")
+            return jsonify({"error": "Insufficient rows in historical data for fitting."}), 400
 
-        # Make future predictions
-        future = model.make_future_dataframe(periods=90, freq='D')
+        # Split warmup and forecast data
+        warmup_cutoff = len(df) // 3
+        warmup_data = df.iloc[:warmup_cutoff]
+        forecast_data = df.iloc[warmup_cutoff:]
+
+        print("Warmup data:\n", warmup_data)
+        print("Forecast data:\n", forecast_data)
+
+        # Initialize and fit the model with forecast data
+        model = Prophet(yearly_seasonality=False, weekly_seasonality=False)
+        model.add_seasonality(name='monthly', period=30.5, fourier_order=5)
+        model.fit(forecast_data[['ds', 'y']])
+
+        # Make future predictions for overlapping and extra months
+        future = model.make_future_dataframe(periods=90, freq='D')  # Extend by 3 months
         forecast = model.predict(future)
 
-        # Aggregate forecasted data by month
-        forecast['month'] = forecast['ds'].dt.to_period("M")
-        monthly_forecast = forecast.groupby('month')['yhat'].sum().reset_index()
-        forecasted_data = [
-            {
-                "ds": row['month'].start_time.strftime('%Y-%m-%d'),
-                "yhat": row['yhat']
-            }
-            for _, row in monthly_forecast.iterrows()
-        ]
-
-        # Prepare historical data
-        historical_data = [
-            {
-                "ds": row['ds'].strftime('%Y-%m-%d'),
-                "y": row['y'],
-                "isHistorical": True
-            }
-            for _, row in grouped_df.iterrows()
-        ]
-
-        # Find the latest historical date
-        latest_date = max(pd.to_datetime(d['ds']) for d in historical_data)
-        latest_month = latest_date.to_period("M")
-
-        # Filter forecast data to ensure it starts after the last historical month
-        filtered_forecast = [
-            item for item in forecasted_data if pd.to_datetime(item['ds']).to_period("M") > latest_month
-        ]
+        # Aggregate forecast to monthly predictions
+        forecast['ds'] = pd.to_datetime(forecast['ds'])
+        monthly_forecast = (
+            forecast.set_index('ds')['yhat']
+            .resample('MS')
+            .mean()
+            .reset_index()
+            .to_dict(orient='records')
+        )
 
         # Combine historical and forecast data
-        result = historical_data + filtered_forecast
+        result = []
+        for item in forecast_data.to_dict(orient='records'):
+            result.append({
+                'ds': item['ds'].strftime('%Y-%m-%d'),
+                'y': item['y'],
+                'isHistorical': True
+            })
+
+        for forecast_item in monthly_forecast:
+            # Check if the forecasted month overlaps with historical data
+            forecast_date = forecast_item['ds'].strftime('%Y-%m-%d')
+            if forecast_date in forecast_data['ds'].dt.strftime('%Y-%m-%d').values:
+                result.append({
+                    'ds': forecast_date,
+                    'y': forecast_item['yhat'],
+                    'isHistorical': False  # Distinguish forecast for overlapping months
+                })
+            elif forecast_date > df['ds'].max().strftime('%Y-%m-%d'):
+                result.append({
+                    'ds': forecast_date,
+                    'y': forecast_item['yhat'],
+                    'isHistorical': False  # Forecast for future months
+                })
+
+        print("Final result:\n", result)
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in forecasting: {str(e)}")
+        return jsonify({"error": "Failed to forecast data."}), 500
 
-if __name__ == "__main__":
+@app.route('/')
+def home():
+    return "Flask App is running!", 200
+
+@app.route('/event_forecast', methods=['POST'])
+def event_forecast():
+
+    try:
+        # Parse incoming data
+        data = request.json
+        if not isinstance(data, list) or not all('ds' in item and 'y' in item and 'event_type' in item for item in data):
+            print("Invalid data format received:", data)
+            return jsonify({"error": "Invalid data format. Expecting a JSON array with 'ds', 'y', and 'event_type' keys."}), 400
+
+        df = pd.DataFrame(data)
+        df['ds'] = pd.to_datetime(df['ds'], errors='coerce')
+        df = df.dropna(subset=['ds', 'y'])
+
+        # Log the incoming data
+        print("Full historical data:\n", df)
+
+        # Ensure sufficient data for warmup and forecast
+        if len(df) < 3:
+            print("Insufficient rows for warmup and forecasting.")
+            return jsonify({"error": "Insufficient rows in historical data for fitting."}), 400
+
+        # Split data into warmup and forecast comparison
+        warmup_cutoff = len(df) // 3
+        warmup_data = df.iloc[:warmup_cutoff]
+        forecast_comparison_data = df.iloc[warmup_cutoff:]
+
+        # Initialize and fit the model
+        model = Prophet(yearly_seasonality=False, weekly_seasonality=False)
+        model.add_seasonality(name='monthly', period=30.5, fourier_order=5)
+        model.fit(df[['ds', 'y']])
+
+        # Make future predictions
+        future = model.make_future_dataframe(periods=90, freq='D')  # Extend by 3 months
+        forecast = model.predict(future)
+
+        # Aggregate forecast to monthly predictions
+        forecast['ds'] = pd.to_datetime(forecast['ds'])
+        monthly_forecast = (
+            forecast.set_index('ds')['yhat']
+            .resample('MS')
+            .mean()
+            .reset_index()
+        )
+
+        # Combine warmup, forecast comparison, and future forecasts
+        result = []
+        for item in data:
+            result.append({
+                'ds': item['ds'],
+                'y': item['y'],
+                'event_type': item['event_type'],
+                'isHistorical': True
+            })
+
+        for _, forecast_item in monthly_forecast.iterrows():
+            forecast_date = forecast_item['ds'].strftime('%Y-%m-%d')
+            if forecast_date in forecast_comparison_data['ds'].dt.strftime('%Y-%m-%d').values:
+                result.append({
+                    'ds': forecast_date,
+                    'y': forecast_item['yhat'],
+                    'event_type': data[0]['event_type'],  # Use the first event_type as Flask processes one at a time
+                    'isHistorical': False
+                })
+            elif forecast_date > df['ds'].max().strftime('%Y-%m-%d'):
+                result.append({
+                    'ds': forecast_date,
+                    'y': forecast_item['yhat'],
+                    'event_type': data[0]['event_type'],
+                    'isHistorical': False
+                })
+
+        print("Final result:\n", result)
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error in forecasting: {str(e)}")
+        return jsonify({"error": "Failed to forecast data."}), 500
+
+
+if __name__ == '__main__':
     app.run(host="0.0.0.0", port=8080)
